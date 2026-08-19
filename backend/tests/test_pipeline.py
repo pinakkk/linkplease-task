@@ -66,6 +66,17 @@ async def _status(jobs, job_id):
     return row["status"] if row else None
 
 
+def _is(jobs, job_id, *statuses):
+    """Predicate for `waiter`: returns a COROUTINE it can await. Writing
+    `lambda: _status(...) == "SENT"` would compare a coroutine object to a
+    string — always False, and the wait would silently burn its full timeout."""
+
+    async def check():
+        return await _status(jobs, job_id) in statuses
+
+    return check()
+
+
 # --- 1. Happy path: SENT only after the reconciler confirms delivery ---------
 
 async def test_matching_comment_sends_once_and_reaches_sent_only_after_confirm(
@@ -85,7 +96,7 @@ async def test_matching_comment_sends_once_and_reaches_sent_only_after_confirm(
 
     loops("worker", "reconciler")
 
-    await waiter(lambda: _status(jobs, job["job_id"]) == "AWAITING_CONFIRM",
+    await waiter(lambda: _is(jobs, job["job_id"], "AWAITING_CONFIRM"),
                  timeout=10.0, message="job never reached AWAITING_CONFIRM")
 
     sends = fake_pseudogram.accepted_sends()
@@ -102,7 +113,7 @@ async def test_matching_comment_sends_once_and_reaches_sent_only_after_confirm(
 
     # Now let it deliver.
     fake_pseudogram.force_delivery(sends[0].dm_id, "delivered")
-    await waiter(lambda: _status(jobs, job["job_id"]) == "SENT",
+    await waiter(lambda: _is(jobs, job["job_id"], "SENT"),
                  timeout=10.0, message="reconciler never promoted the job to SENT")
     assert len(fake_pseudogram.accepted_sends()) == 1, "confirmation caused a resend"
 
@@ -126,7 +137,7 @@ async def test_accepted_then_failed_is_resent_with_a_new_idempotency_key(
 
     loops("worker", "reconciler")
 
-    await waiter(lambda: _status(jobs, job_id) == "SENT", timeout=20.0,
+    await waiter(lambda: _is(jobs, job_id, "SENT"), timeout=20.0,
                  message="job never recovered from the failed delivery")
 
     keys = [s.idempotency_key for s in fake_pseudogram.accepted_sends()]
@@ -194,7 +205,7 @@ async def test_five_consecutive_500s_fail_the_job_honestly(
     job_id = (await _job(jobs))["job_id"]
 
     loops("worker")
-    await waiter(lambda: _status(jobs, job_id) == "FAILED", timeout=20.0,
+    await waiter(lambda: _is(jobs, job_id, "FAILED"), timeout=20.0,
                  message="job never reached FAILED after repeated 500s")
 
     row = await _job(jobs, job_id=job_id)
@@ -226,7 +237,7 @@ async def test_a_500_then_success_recovers(
     job_id = (await _job(jobs))["job_id"]
 
     loops("worker", "reconciler")
-    await waiter(lambda: _status(jobs, job_id) == "SENT", timeout=20.0,
+    await waiter(lambda: _is(jobs, job_id, "SENT"), timeout=20.0,
                  message="job never recovered after two 500s")
     assert len(fake_pseudogram.accepted_sends()) == 1
 
@@ -247,7 +258,7 @@ async def test_400_fails_immediately_after_one_attempt(
     job_id = (await _job(jobs))["job_id"]
 
     loops("worker")
-    await waiter(lambda: _status(jobs, job_id) == "FAILED", timeout=10.0,
+    await waiter(lambda: _is(jobs, job_id, "FAILED"), timeout=10.0,
                  message="a 400 did not fail the job")
 
     await asyncio.sleep(0.3)  # let a buggy retry show itself
@@ -278,7 +289,7 @@ async def test_same_user_five_comments_one_dm_four_duplicates_blocked(
     assert await counters("duplicates_blocked_rule_user") == 4
 
     loops("worker", "reconciler")
-    await waiter(lambda: _status(jobs, rows[0]["job_id"]) == "SENT", timeout=15.0,
+    await waiter(lambda: _is(jobs, rows[0]["job_id"], "SENT"), timeout=15.0,
                  message="the single obligation never completed")
 
     dms = fake_pseudogram.dms_to("usr_spam")
@@ -384,7 +395,7 @@ async def test_cancelled_job_revived_by_a_new_comment_sends_exactly_one_dm(
     assert revived["comment_id"] == "cmt_r2"
 
     loops("worker", "reconciler")
-    await waiter(lambda: _status(jobs, job_id) == "SENT", timeout=15.0,
+    await waiter(lambda: _is(jobs, job_id, "SENT"), timeout=15.0,
                  message="revived job never sent")
     assert len(fake_pseudogram.dms_to("usr_revive")) == 1
 
@@ -408,7 +419,7 @@ async def test_timeout_then_retry_reuses_the_key_and_yields_one_dm(
     job_id = (await _job(jobs))["job_id"]
 
     loops("worker", "reconciler")
-    await waiter(lambda: _status(jobs, job_id) in ("AWAITING_CONFIRM", "SENT"),
+    await waiter(lambda: _is(jobs, job_id, "AWAITING_CONFIRM", "SENT"),
                  timeout=25.0, message="job never recovered from the timeout")
 
     keys = [s.idempotency_key for s in fake_pseudogram.send_attempts()]

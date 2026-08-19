@@ -1,0 +1,10 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1280, height: 900 } });
+await p.goto("http://localhost:3111/", { waitUntil: "networkidle" });
+await p.waitForTimeout(1500);
+const snap = await p.accessibility.snapshot();
+const texts = [];
+(function walk(n){ if(!n) return; if(n.name) texts.push(`${n.role}: ${n.name}`); (n.children||[]).forEach(walk); })(snap);
+console.log(texts.slice(0, 22).join("\n"));
+await b.close();
