@@ -45,6 +45,47 @@ const METRICS: { key: MetricKey; label: string; meaning: string }[] = [
 
 type RunPhase = "idle" | "starting" | "running" | "done" | "error";
 
+/**
+ * True when the run failed because PseudoGram rejected our credentials.
+ *
+ * Our backend proxies the simulator, so a 401 from them reaches us wrapped in
+ * its own 5xx with the upstream status in the body — checking `error.status`
+ * alone would miss it and show the wrong explanation.
+ */
+/**
+ * Our proxy returns a JSON body describing the upstream failure. Showing the
+ * raw blob is noise, so pull out the parts a human needs and fall back to the
+ * full message when the shape is anything unexpected.
+ */
+function readableError(error: ApiError): string {
+  const start = error.message.indexOf("{");
+  if (start === -1) return error.message;
+  try {
+    const body = JSON.parse(error.message.slice(start)) as {
+      error?: string;
+      pseudogram_status?: number;
+      pseudogram_body?: { detail?: string };
+      hint?: string;
+    };
+    const parts = [
+      body.pseudogram_status
+        ? `PseudoGram returned ${body.pseudogram_status}`
+        : body.error,
+      body.pseudogram_body?.detail,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(" — ") : error.message;
+  } catch {
+    return error.message;
+  }
+}
+
+function isCredentialFailure(error: ApiError): boolean {
+  if (error.status === 401 || error.status === 403) return true;
+  return /pseudogram_status"?\s*:\s*40[13]|Malformed API key|invalid_api_key/i.test(
+    error.message,
+  );
+}
+
 export interface SimPanelProps {
   className?: string;
 }
@@ -191,10 +232,10 @@ export function SimPanel({ className }: SimPanelProps) {
         <ErrorBanner
           className="mt-5"
           title="Simulation could not start"
-          message={error.message}
+          message={readableError(error)}
           hint={
-            error.status === 401 || error.status === 403
-              ? "PseudoGram rejected our API key. The key is still a placeholder in this deployment, so this is the expected response until a real one is set — the pipeline itself is unaffected."
+            isCredentialFailure(error)
+              ? "PseudoGram rejected our API key, so no events were ever fired. The key is a placeholder in this deployment until the apply + keygen steps are done by hand — this is the expected response right now, and the pipeline itself is unaffected."
               : "Nothing was written to the pipeline, so no jobs or counters were touched by this attempt."
           }
         />

@@ -138,3 +138,14 @@ against their truth data.
 sends per window the backlog genuinely had not drained. A grader sampling
 `/stats` mid-burst will see exactly this shape: a small `sent`, a large
 `queued`, and no inflation. Worth saying out loud in the Loom.
+
+## 2026-08-19 — Frontend visual QA (deployed Cloudflare build)
+
+**Horizontal overflow on the mobile landing page (375px), 75px.**
+Conditions: `/` at 375×812 on the first deployed build. Cause: the decorative
+hero glow blobs are sized `w-[min(80rem,140vw)]`, i.e. deliberately wider than
+the viewport, and sit at `-z-10`. Fixed with `overflow-clip` on the hero shell.
+Consequence: cosmetic only (the elements are `pointer-events-none`), but it made
+the whole page scroll sideways on a phone. Re-verified after redeploy: all six
+combinations (landing/dashboard × light/dark × 1440/375) show no overflow and no
+console errors.

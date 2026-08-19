@@ -132,9 +132,12 @@ budget rather than duplicating DMs. Caught it by reading the deploy output;
   in my suite runs against a stub I wrote from their documentation. If the real
   implementation differs, items 5 and the whole resend-cycle design are affected
   and my tests would not have caught it.
-- **A 500-event live burst.** The 500/10s drill has been run only against the
-  local stub, where the network is an in-process ASGI transport. Connection-pool
-  behaviour, their real 429 pacing, and webhook delivery under real burst are
-  all unverified.
+- **A 500-event burst over the real network.** I have run the 500-events-in-10s
+  drill locally against the real webhook handler and the fake API (540 requests
+  including redeliveries: 540/540 returned 200, p50 2ms, zero events lost, worst
+  case exactly 9 sends in any rolling window against a cap of 9, 50 sends → 50
+  distinct dm_ids). What that does **not** cover: real network latency and
+  TLS handshakes under burst, Fly's proxy behaviour, their real 429 pacing, and
+  connection-pool pressure with real round-trip times. Those need the live run.
 - **A Fly machine restart mid-burst.** Designed for and unit-tested via the
   boot-recovery drill, but not yet executed against the live deployment.
