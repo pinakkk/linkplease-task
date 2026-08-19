@@ -75,20 +75,12 @@ export function Nav({ className }: NavProps) {
         aria-label="Primary"
         className="mx-auto flex w-full max-w-6xl items-center gap-3 rounded-full border border-line bg-surface/80 px-3 py-2 shadow-[var(--shadow-card)] backdrop-blur-xl sm:px-4"
       >
-        {/* Logo */}
+        {/* Wordmark. No icon mark — the name carries it. */}
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-2 rounded-full px-2 py-1 text-base font-bold tracking-tight text-ink"
+          className="flex shrink-0 items-center rounded-full px-2 py-1 text-base font-bold tracking-tight text-ink"
         >
-          <span
-            aria-hidden="true"
-            className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-[13px] font-black text-white"
-          >
-            L
-          </span>
-          <span>
-            LinkPlease
-          </span>
+          LinkPlease
         </Link>
 
         {/* Centre links (desktop) */}

@@ -209,13 +209,7 @@ export default function Home() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-12 sm:px-6 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-base font-bold tracking-tight text-ink">
-              <span
-                aria-hidden="true"
-                className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-[13px] font-black text-white"
-              >
-                L
-              </span>
+            <div className="text-base font-bold tracking-tight text-ink">
               LinkPlease
             </div>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink-muted">
