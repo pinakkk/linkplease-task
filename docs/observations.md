@@ -67,3 +67,29 @@ and anything that assumes prompt draining will be wrong.** At 9 sends/60s, a
 500-event burst that matches ~120 rules takes ~13 minutes to drain. That is not
 a bug, it is the platform's rate limit, and `/stats` reports the backlog
 honestly as `queued`.
+
+## 2026-08-19 — Targeted race probes (local Postgres)
+
+**10 truly concurrent identical `event_id` upserts → exactly one winner, zero
+exceptions.**
+Conditions: `asyncio.gather` of 10 identical `INSERT ... ON CONFLICT DO UPDATE
+... RETURNING (xmax = 0)` statements against the same `event_id`, real
+connection pool, real Postgres. Result: 1 reported as an insert, 9 as
+redeliveries, 1 event row, `redeliveries = 9`, no `UniqueViolation` raised.
+Consequence: BLUEPRINT §5 row 1's prediction is confirmed rather than assumed.
+The webhook's dedup does NOT have a "both pass the check before either writes"
+race, because there is no check — the constraint and the upsert are the same
+statement. (This is worth stating in FAILURES.md as a race we specifically
+tested for and did not find, since it is the classic one.)
+
+**A crashed dispatch followed by a redelivery would lose the DM permanently
+without `events.processed_at` — verified by construction.**
+Conditions: inserted an event row directly (simulating "webhook returned 200,
+then the background matcher task died"), then replayed the same `event_id`
+through the upsert. The redelivery correctly reports `inserted = False`, so the
+webhook returns early and never dispatches — meaning the redelivery cannot heal
+the first delivery's failure. With the matcher sweep running, the job appeared
+within ~150ms and the event was marked processed.
+Consequence: the sweep loop is not belt-and-braces, it is the only thing that
+recovers this case. If the sweep is ever disabled, an event whose dispatch
+crashed becomes a silently lost DM. Belongs in FAILURES.md as a dependency.

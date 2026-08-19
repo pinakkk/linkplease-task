@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import config, db, rules, stats, webhook
+from . import config, db, rules, simulate, stats, webhook
 
 logging.basicConfig(
     level=logging.INFO,
@@ -188,6 +188,7 @@ app.add_middleware(
 app.include_router(webhook.router)
 app.include_router(rules.router)
 app.include_router(stats.router)
+app.include_router(simulate.router)
 
 
 def _heartbeat(module_name: str) -> float | None:
