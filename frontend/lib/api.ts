@@ -1,3 +1,6 @@
+/* Copyright (c) 2026 Pinak Kundu. All rights reserved.
+ * Licensed under the Business Source License 1.1 (see LICENSE).
+ * No use, copying, or modification without written permission. */
 /**
  * Typed client for the LinkPlease backend (BLUEPRINT §6).
  *
@@ -56,61 +59,72 @@ export interface Job {
   cycle: number;
   dm_id: string | null;
   last_error: string | null;
+  post_id?: string | null;
+  created_at?: string;
   updated_at: string;
 }
 
 /**
- * The four graded numbers plus pipeline internals. Modelled permissively —
- * Agent A is finalising the exact shape, so every field beyond the graded four
- * is optional and consumers must guard before rendering.
+ * `GET /api/stats/extended`. Shape verified against the live Fly backend on
+ * 2026-08-19; every field beyond the graded four stays optional because this
+ * route is additive-only and must never be able to crash the dashboard.
  */
-export interface ExtendedStats extends Stats {
-  /** Dedup counters — §4.3 calibration. */
+export interface RateBudget {
+  /** Rolling window length in seconds (60). */
+  window_seconds?: number;
+  /** Sends consumed inside the current window. */
+  used?: number;
+  /** Our self-imposed cap — 9, deliberately one under PseudoGram's 10. */
+  max?: number;
+}
+
+export interface DedupCounters {
+  /** §4.3 semantics (a): suppressed (rule,user) obligations. */
   duplicates_blocked_rule_user?: number;
+  /** Redelivered events dropped at ingest by the event_id upsert. */
   duplicate_events_suppressed?: number;
+  /** Of those redeliveries, how many would have produced a DM. */
+  duplicate_events_would_dm?: number;
+  [key: string]: number | undefined;
+}
 
+export interface EventCounters {
+  received?: number;
+  redelivered?: number;
+  unprocessed?: number;
+  [key: string]: number | undefined;
+}
+
+export interface ExtendedStats extends Stats {
+  /** Which §4.3 formula `duplicates_blocked` currently reports. */
+  duplicates_formula?: string;
+  counters?: DedupCounters;
   cancelled?: number;
-  sending?: number;
-  awaiting_confirm?: number;
-
-  /** Per-status counts, keyed by JobStatus. */
-  by_status?: Partial<Record<JobStatus, number>>;
-
-  /** Rate budget, e.g. 7 of 9 sends used in the current window. */
-  rate_budget_used?: number;
-  rate_budget_max?: number;
-  rate_window_seconds?: number;
-
-  /** How far behind the reconciler is, in seconds. */
-  reconciler_lag_seconds?: number;
-  reconciler_last_run_at?: string | null;
-  worker_last_run_at?: string | null;
-
-  /** Event ingest audit. */
-  events_received?: number;
-  events_redelivered?: number;
-  events_deduplicated?: number;
-
+  /** Per-status job counts. Absent statuses simply have no rows. */
+  jobs_by_status?: Partial<Record<JobStatus, number>>;
+  events?: EventCounters;
+  rate_budget?: RateBudget;
+  /** Reconciler lag proxy: age of the oldest unconfirmed 202. */
+  oldest_awaiting_confirm_seconds?: number | null;
   [key: string]: unknown;
 }
 
 export interface EventRecord {
   event_id?: string;
-  type?: string;
+  event_type?: string;
   comment_id?: string;
   user_id?: string;
   username?: string | null;
   text?: string;
   received_at?: string;
-  duplicate?: boolean;
+  redeliveries?: number;
   [key: string]: unknown;
 }
 
 export interface Health {
-  status?: string;
-  db?: boolean | string;
-  worker_heartbeat?: string | null;
-  reconciler_heartbeat?: string | null;
+  ok?: boolean;
+  database?: string;
+  loops?: Record<string, { last_beat?: number; age_seconds?: number }>;
   [key: string]: unknown;
 }
 
@@ -121,6 +135,8 @@ export interface CreateRuleInput {
 
 export interface SimulationStart {
   run_id: string;
+  count?: number;
+  duration_seconds?: number;
   [key: string]: unknown;
 }
 
@@ -128,19 +144,34 @@ export interface SimulationDiscrepancy {
   kind?: string;
   user_id?: string;
   rule_id?: string;
+  comment_id?: string;
+  event_id?: string;
   expected?: unknown;
   actual?: unknown;
   detail?: string;
   [key: string]: unknown;
 }
 
+/**
+ * `GET /api/simulate/{run_id}/report` — our four numbers next to PseudoGram's
+ * truth for the same run, plus the row-level differences.
+ *
+ * `ours` / `truth` are keyed by the four graded metric names. A key missing
+ * from `truth` means their side does not report that metric, which the UI
+ * renders as "not reported" rather than a mismatch.
+ */
+export type MetricKey = keyof Stats;
+
 export interface SimulationReport {
   run_id?: string;
+  /** "pending" while events are still landing, "complete" once diffed. */
   status?: string;
-  truth?: Record<string, unknown>;
-  ours?: Record<string, unknown>;
+  ours?: Partial<Record<MetricKey, number>>;
+  truth?: Partial<Record<MetricKey, number>>;
   discrepancies?: SimulationDiscrepancy[];
+  /** Backend's own verdict; the UI recomputes per-metric matches regardless. */
   matched?: boolean;
+  error?: string;
   [key: string]: unknown;
 }
 

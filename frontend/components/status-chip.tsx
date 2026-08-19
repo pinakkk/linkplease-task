@@ -1,3 +1,6 @@
+/* Copyright (c) 2026 Pinak Kundu. All rights reserved.
+ * Licensed under the Business Source License 1.1 (see LICENSE).
+ * No use, copying, or modification without written permission. */
 import type { JobStatus } from "@/lib/api";
 import { humanizeStatus } from "@/lib/format";
 

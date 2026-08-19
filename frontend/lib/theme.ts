@@ -1,3 +1,6 @@
+/* Copyright (c) 2026 Pinak Kundu. All rights reserved.
+ * Licensed under the Business Source License 1.1 (see LICENSE).
+ * No use, copying, or modification without written permission. */
 /**
  * Theme helpers. The pre-hydration inline script and the runtime toggle both
  * live here so the storage key / attribute name can never drift between them.

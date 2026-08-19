@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Pinak Kundu. All rights reserved.
+# Licensed under the Business Source License 1.1 (see LICENSE).
+# No use, copying, or modification without written permission.
 """POST /rules (graded contract) and GET /api/rules (dashboard).
 
 A rule is "when a comment contains this keyword, DM this message". The keyword

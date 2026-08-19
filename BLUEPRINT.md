@@ -448,3 +448,63 @@ Human-only tasks (never automated): PseudoGram apply/keygen (real personal data)
 3. Whether grader waits for queue drain or scores mid-burst — if mid-burst, honest `queued` is exactly what they want to see; no action, but confirm timing from truth data.
 4. Fly Postgres vs SQLite-on-volume — Postgres Plan A; decide within first deploy hour.
 5. Retro-matching (rule created after comments) — assumed **no**; verify against truth data.
+
+---
+
+## Amendments
+
+Changes made during implementation, with the reason. The spec above is left as
+written; these entries override it where they conflict.
+
+### A1. `events` gains `processed_at`; `dm_jobs` gains `check_after` and `checks`
+**§3.** Three columns the schema needed and did not have.
+- `events.processed_at` — the fast path returns 200 and matches in a background
+  task. If that task dies (crash, deploy, unhandled error), the event is
+  ingested but never matched, and nothing on disk records that. `processed_at
+  IS NULL` is that record, and it makes the matcher sweep loop and the boot
+  replay possible. Without it, "no DM is silently lost" is not true across a
+  restart in the window between insert and match.
+- `dm_jobs.check_after` / `checks` — §4.5 specifies a per-job reconciler poll
+  schedule (2s, 5s, 10s, 30s, then 60s). That schedule has to live somewhere
+  per job; these two columns are it.
+
+### A2. CANCELLED revival is a fresh row, not a resurrected one
+**§3 (revival rule), §4.2 step 3.** The spec says a new qualifying comment
+flips the CANCELLED row back to QUEUED with `cycle+1`. The implementation
+instead lets the INSERT succeed: `uq_live_job` excludes CANCELLED rows, so the
+insert simply does not conflict and a brand-new job row is created.
+
+Why the change: the specified UPDATE can itself violate `uq_live_job` when a
+live row and a cancelled row coexist for the same (rule, user) — verified in
+testing. The fresh insert cannot. It also gets a naturally fresh
+Idempotency-Key (`job:{new_id}:c0`) rather than depending on a cycle bump to
+produce one, and it preserves the cancelled row as audit history.
+
+Externally identical: exactly one live obligation and exactly one DM per
+(rule, user). The tests assert that invariant rather than the representation.
+
+### A3. Rate-ledger entries are written for every issued request, not just
+accepted ones
+**§4.4.** `send_log` gets a row before the request goes out, and the row stands
+whether the answer was 202, 429, 500, or a timeout. Their limiter counts
+requests, not successes, so counting only successes would let a run of 500s
+push us over the real limit. Recording before rather than after means a crash
+mid-request over-counts by one — the conservative direction.
+
+### A4. Region is `sin`, not `bom`
+**§8.1.** Mumbai had no volume capacity for a Postgres cluster at provisioning
+time (`app is already using all available zones in region bom`). The app and
+the database must share a region, so both moved to Singapore.
+
+### A5. Fly creates a second machine unless stopped
+**§8.1.** `fly deploy` with `min_machines_running = 1` silently provisions a
+second machine "for high availability". Two machines means two send workers and
+two reconcilers against a 10-per-60s limit — the budget of 9 becomes 18 and
+every send starts getting 429s. Machine count must be checked after every
+deploy. Documented in `fly.toml`.
+
+### A6. Frontend is Next 16, not Next 15
+**§2, §7.** `create-next-app@latest` installs Next 16.3.1 / React 19.2.8.
+`@opennextjs/cloudflare@1.20.2` declares `next: ">=15.5.21 <16 || >=16.2.11"`,
+so 16.3.1 is supported and 16.0–16.2.10 is an excluded range — meaning
+downgrading is the risky move, not staying. Kept 16.

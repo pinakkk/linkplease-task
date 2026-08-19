@@ -1,3 +1,6 @@
+# Copyright (c) 2026 Pinak Kundu. All rights reserved.
+# Licensed under the Business Source License 1.1 (see LICENSE).
+# No use, copying, or modification without written permission.
 """Runtime configuration. Everything comes from the environment; the defaults
 are the ones BLUEPRINT settles on, so a bare `uvicorn app.main:app` runs the
 same policy as production."""
