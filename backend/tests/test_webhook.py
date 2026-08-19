@@ -119,7 +119,8 @@ async def test_missing_event_id_is_400(api, pool):
 
 
 async def test_empty_event_id_is_400(api, pool):
-    payload = comment_event(event_id="")
+    payload = comment_event()
+    payload["event_id"] = ""      # set after building; "" is falsy in the builder
     resp = await api.post("/webhook", content=encode(payload))
     assert resp.status_code == 400
 

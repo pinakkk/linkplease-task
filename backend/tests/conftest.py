@@ -28,6 +28,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 
 # --- Environment: must happen before any `app.*` import ----------------------
 
@@ -56,6 +57,19 @@ import asyncpg  # noqa: E402
 import httpx  # noqa: E402
 
 from tests import fake_pseudogram  # noqa: E402
+
+
+def pytest_configure(config):
+    """Put every async test and fixture on ONE session-wide event loop.
+
+    The asyncpg pool is created once per session and its connections are bound
+    to the loop that created them; with pytest-asyncio's default per-test loop
+    every query would raise "attached to a different loop". Setting it here
+    rather than in pyproject.toml keeps the whole test-only concern inside the
+    tests directory.
+    """
+    config._inicache["asyncio_default_test_loop_scope"] = "session"
+    config._inicache["asyncio_default_fixture_loop_scope"] = "session"
 
 
 # --- Skip helpers ------------------------------------------------------------
@@ -111,12 +125,7 @@ def test_database():
         pass
 
 
-@pytest.fixture(scope="session")
-def event_loop_policy():
-    return asyncio.get_event_loop_policy()
-
-
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def pool(test_database):
     """The pool `app.db` will use. Created once, schema applied once."""
     from app import db
@@ -126,7 +135,7 @@ async def pool(test_database):
     await db.close()
 
 
-@pytest.fixture(autouse=True)
+@pytest_asyncio.fixture(autouse=True, loop_scope="session")
 async def clean_db(pool):
     """Fast reset between tests: TRUNCATE beats DROP/CREATE by ~100x, and
     RESTART IDENTITY keeps job_id predictable so idempotency-key assertions
@@ -207,7 +216,7 @@ def wire_pseudogram(fake_api, monkeypatch):
 
 # --- The app under test ------------------------------------------------------
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def api(pool):
     """An httpx client bound to `app.main.app` over ASGI, WITHOUT running the
     lifespan — the background loops are started explicitly by the tests that
@@ -221,7 +230,7 @@ async def api(pool):
         yield client
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def loops(pool, wire_pseudogram):
     """Start the background loops for a pipeline test and stop them after.
 
@@ -346,7 +355,7 @@ def make_deleted():
 
 # --- Direct DB helpers used by many tests ------------------------------------
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def create_rule(pool):
     async def _create(keyword: str = "PRICE", message: str = "Here is the price list",
                       rule_id: str | None = None) -> str:
@@ -361,7 +370,7 @@ async def create_rule(pool):
     return _create
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def jobs(pool):
     """Read job rows back. Every pipeline assertion goes through the DB, because
     the DB is the system's source of truth (BLUEPRINT §1)."""
@@ -382,7 +391,7 @@ async def jobs(pool):
     return _jobs
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def counters(pool):
     async def _counter(name: str) -> int:
         async with pool.acquire() as conn:

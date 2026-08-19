@@ -106,6 +106,10 @@
     "Segoe UI", sans-serif;
 }
 
+/* Tailwind v4 dark variant, driven by the data-theme attribute (not the media
+   query) so the toggle is the single source of truth. Enables `dark:` utilities. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* --------------------------------------------------------------------------- */
 
 @layer base {

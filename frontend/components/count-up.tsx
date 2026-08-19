@@ -102,27 +102,19 @@ export function CountUp({
       ? rounded.toFixed(decimals)
       : formatNumber(rounded);
 
+  const settled = format ? format(value) : formatNumber(value);
+
   return (
     <span ref={ref} className={className}>
-      {prefix ? <span className={affixClassName}>{prefix}</span> : null}
-      <span
-        // The animating value changes every frame; announcing it would spam
-        // screen readers. The settled value is exposed via aria-label instead.
-        aria-hidden="true"
-        suppressHydrationWarning
-      >
-        {text}
+      {/* The visible number changes every animation frame; announcing it would
+          spam screen readers, so the whole visual group is aria-hidden and the
+          settled value is exposed once in an sr-only span. */}
+      <span aria-hidden="true">
+        {prefix ? <span className={affixClassName}>{prefix}</span> : null}
+        <span suppressHydrationWarning>{text}</span>
+        {suffix ? <span className={affixClassName}>{suffix}</span> : null}
       </span>
-      <span className="sr-only">
-        {prefix ?? ""}
-        {format ? format(value) : formatNumber(value)}
-        {suffix ?? ""}
-      </span>
-      {suffix ? (
-        <span className={affixClassName} aria-hidden="true">
-          {suffix}
-        </span>
-      ) : null}
+      <span className="sr-only">{`${prefix ?? ""}${settled}${suffix ?? ""}`}</span>
     </span>
   );
 }

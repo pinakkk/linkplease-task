@@ -5,7 +5,10 @@
 # machine settings below.
 
 app = "linkplease-backend"
-primary_region = "bom"
+# Region note: bom (Mumbai) had no volume capacity for the Postgres cluster at
+# provision time, so both the app and the DB live in sin (Singapore) — they must
+# share a region for the .flycast internal network to be fast.
+primary_region = "sin"
 
 [build]
   dockerfile = "Dockerfile"
@@ -27,6 +30,13 @@ primary_region = "bom"
   # The concurrency model is one process, one send worker, one reconciler.
   # Scaling to a second machine would double the send rate against a 10/60s
   # limit and race the dedup counters. Keep this app at exactly 1 machine.
+  #
+  # TRAP, observed on the first deploy: `fly deploy` creates a SECOND machine
+  # "for high availability" whenever min_machines_running >= 1, and says so only
+  # in passing. Two machines = two send workers = a breached rate limit.
+  # After EVERY deploy run:
+  #     fly machines list --app linkplease-backend
+  # and destroy any extra. `fly scale count 1` also pins it.
   [http_service.concurrency]
     type = "requests"
     soft_limit = 200

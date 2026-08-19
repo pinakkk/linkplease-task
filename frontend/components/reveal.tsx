@@ -12,7 +12,7 @@ export interface RevealProps {
   y?: number;
   /**
    * Stagger direct children instead of animating the wrapper as one block.
-   * Children must be <Reveal.Item> (or any motion child using the item variant).
+   * Children must be <RevealItem> (or any motion child using the item variant).
    */
   stagger?: boolean;
   /** Seconds between staggered children. */
@@ -113,6 +113,11 @@ export function RevealItem({
   );
 }
 
-Reveal.Item = RevealItem;
+/**
+ * NOTE: no `Reveal.Item = RevealItem` static-property shorthand. `Reveal` is a
+ * client component; when a Server Component imports it, React hands over a
+ * client-reference proxy that does NOT carry static properties, so `Reveal.Item`
+ * would be `undefined` at render. Import { RevealItem } explicitly.
+ */
 
 export default Reveal;

@@ -31,8 +31,12 @@ export function usePoll<T>(
   const [updatedAt, setUpdatedAt] = useState<number>();
   const [tick, setTick] = useState(0);
 
+  // Keeping the fetcher in a ref lets the polling effect call the latest one
+  // without re-subscribing (and restarting the interval) on every render.
   const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
+  useEffect(() => {
+    fetcherRef.current = fetcher;
+  }, [fetcher]);
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 

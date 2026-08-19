@@ -11,9 +11,8 @@ export const THEME_ATTRIBUTE = "data-theme";
 /**
  * Blocking inline script injected into <head>. Runs before first paint so the
  * correct theme attribute is on <html> before any styled pixel is drawn — no
- * flash of the wrong theme, and no hydration mismatch (the server always emits
- * markup with no data-theme attribute, and React does not diff attributes it
- * did not render).
+ * flash of the wrong theme. The layout renders <html data-theme="light"
+ * suppressHydrationWarning>, so React accepts whatever this script wrote.
  *
  * Kept as a single string constant so it cannot drift from the helpers below.
  */
@@ -24,6 +23,22 @@ export const THEME_INIT_SCRIPT = `(function(){try{var k=${JSON.stringify(
 )},t);document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.setAttribute(${JSON.stringify(
   THEME_ATTRIBUTE,
 )},"light");}})();`;
+
+/**
+ * Subscribes to changes of the data-theme attribute on <html> — the store
+ * backing useSyncExternalStore in theme-toggle.tsx. The attribute is the single
+ * source of truth, so any writer (the toggle, the pre-hydration script, a
+ * dev-mode remount) notifies every subscriber automatically.
+ */
+export function subscribeToTheme(onChange: () => void): () => void {
+  if (typeof document === "undefined") return () => {};
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: [THEME_ATTRIBUTE],
+  });
+  return () => observer.disconnect();
+}
 
 /** Reads the theme currently applied to <html>. Safe on the server (→ light). */
 export function getCurrentTheme(): Theme {
@@ -57,11 +72,19 @@ export function resolveTheme(): Theme {
   return getStoredTheme() ?? getSystemTheme();
 }
 
-/** Writes the theme to <html> and persists the choice. */
-export function applyTheme(theme: Theme): void {
+/**
+ * Writes the theme to <html>.
+ *
+ * `persist` defaults to false so that merely applying the resolved theme (e.g.
+ * the Strict Mode re-apply) never records a choice the user did not make — a
+ * visitor with no stored preference keeps following prefers-color-scheme. Only
+ * the toggle passes `persist: true`.
+ */
+export function applyTheme(theme: Theme, persist = false): void {
   if (typeof document === "undefined") return;
   document.documentElement.setAttribute(THEME_ATTRIBUTE, theme);
   document.documentElement.style.colorScheme = theme;
+  if (!persist) return;
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   } catch {
@@ -111,7 +134,7 @@ export function toggleThemeWithReveal(
   origin?: { x: number; y: number },
 ): void {
   const doc = document as ViewTransitionDocument;
-  const apply = () => applyTheme(next);
+  const apply = () => applyTheme(next, true);
 
   if (typeof doc.startViewTransition !== "function" || prefersReducedMotion()) {
     runFallbackTransition(apply);
