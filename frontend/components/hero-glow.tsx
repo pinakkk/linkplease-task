@@ -53,10 +53,12 @@ export function HeroGlow({ children }: { children: ReactNode }) {
       </motion.div>
 
       {/* A second, smaller and offset blob gives the glow a non-circular
-          silhouette without needing an image asset. */}
+          silhouette without needing an image asset. Hidden below `sm`, where
+          the viewport is too narrow for the offset to read as anything but a
+          stray smudge beside the headline. */}
       <motion.div
         aria-hidden="true"
-        className="pointer-events-none absolute right-[8%] top-[2rem] -z-10 h-[26rem] w-[26rem]"
+        className="pointer-events-none absolute right-[14%] top-[-2rem] -z-10 hidden h-[30rem] w-[30rem] sm:block"
         style={reduced ? undefined : { y: glowY, opacity: glowOpacity }}
       >
         <div

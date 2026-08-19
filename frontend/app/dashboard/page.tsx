@@ -126,7 +126,9 @@ export default function DashboardPage() {
       </section>
 
       {/* ------------------------------------------- Rate budget + internals */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+      {/* items-start stops the shorter card from stretching to match the taller
+          one and leaving a block of dead space under the meter. */}
+      <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <Panel
           kicker="Self-imposed cap"
           title="Send rate budget"

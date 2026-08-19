@@ -161,13 +161,15 @@ export default function Home() {
       <section id="guarantee" className="mx-auto max-w-6xl px-4 pb-20 sm:px-6 sm:pb-28">
         <Reveal>
           <div className="overflow-hidden rounded-[var(--radius-card)] bg-navy p-8 shadow-[var(--shadow-card)] sm:p-12 lg:p-14">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-soft">
+            {/* In dark mode --accent-soft is a deep navy, which would vanish
+                against this card. navy-ink is light in both themes. */}
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-navy-ink/70">
               What we actually guarantee
             </span>
 
             <h2 className="mt-5 max-w-3xl text-balance text-3xl font-bold leading-tight tracking-tight text-navy-ink sm:text-4xl lg:text-5xl">
               Three promises the code can be held to —{" "}
-              <span className="italic text-accent-soft">and nothing more.</span>
+              <span className="italic text-navy-ink/55">and nothing more.</span>
             </h2>
 
             <div className="mt-12 grid gap-8 md:grid-cols-3">

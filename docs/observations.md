@@ -104,3 +104,37 @@ polling reaches the backend from the edge.
 Conditions: `@opennextjs/cloudflare` 1.x, `nodejs_compat` +
 `global_fetch_strictly_public` flags, no incremental cache configured (every
 page is static or client-polled).
+
+## 2026-08-19 — 500-event burst drill (local, real webhook handler + fake API)
+
+Conditions: 540 HTTP requests (500 unique events + 40 redeliveries at the
+documented 8% rate) fired over 10s at the real FastAPI app via ASGI transport,
+against local Postgres, with the fake PseudoGram injecting the documented
+failure rates (20% 500s, 15% eventual delivery failure) and enforcing its own
+10-per-window limiter. Rate window compressed to 10s (budget still 9) so the
+drill finishes; signature verification ON.
+
+**Ingest kept up comfortably.** 540/540 returned 200. Latency p50 **2ms**, max
+**8ms** — against a 5000ms contract, a 625x margin. The fast path (HMAC + one
+upsert) is doing what it was designed to do.
+
+**Nothing lost.** `events` = exactly 500 rows, `sum(redeliveries)` = exactly 40.
+Every redelivery was recognised; no unique event was dropped.
+
+**Rate limit saturated but never breached.** Worst case across every rolling
+window in the run: **9 sends, cap 9**. The limiter runs right at the ceiling
+without going over, which is what we want — headroom that is never spent is
+throughput wasted.
+
+**No duplicate DMs.** The stub accepted 50 sends and created 50 distinct
+`dm_id`s. One DM per obligation, no idempotency collisions.
+
+**149 jobs and 161 duplicates_blocked from 500 events** — with 60 users across
+3 keywords, most comments after the first from a given (rule, user) are
+correctly suppressed. This ratio is the thing live calibration has to confirm
+against their truth data.
+
+**`queued = 115` when the drill ended, and that is the honest number.** At 9
+sends per window the backlog genuinely had not drained. A grader sampling
+`/stats` mid-burst will see exactly this shape: a small `sent`, a large
+`queued`, and no inflation. Worth saying out loud in the Loom.

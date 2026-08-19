@@ -92,7 +92,10 @@ export function Nav({ className }: NavProps) {
         </Link>
 
         {/* Centre links (desktop) */}
-        <ul className="mx-auto hidden items-center gap-1 md:flex">
+        {/* min-w-0 lets this list shrink instead of forcing the pill wider than
+            the viewport at exactly the `md` breakpoint, where the centre links
+            appear while the row is still at its tightest. */}
+        <ul className="mx-auto hidden min-w-0 items-center gap-1 md:flex">
           {LINKS.map((link) => (
             <li key={link.href}>
               <Link
