@@ -332,15 +332,18 @@ def _find_event_list(truth: Any) -> tuple[list[dict], str]:
         found = _as_list_of_dicts(truth.get(key))
         if found:
             return found, f"key {key!r}"
-        # One level of nesting: {"run": {"events": [...]}} and friends.
-        nested = truth.get(key)
-        if isinstance(nested, dict):
+
+    # One level of nesting under ANY key: {"run": {"events": [...]}},
+    # {"payload": {"events": [...]}} and friends. We do not know their
+    # wrapper's name, so we search every dict-valued key rather than guessing.
+    for key, value in truth.items():
+        if isinstance(value, dict):
             for inner in _EVENT_LIST_KEYS:
-                found = _as_list_of_dicts(nested.get(inner))
+                found = _as_list_of_dicts(value.get(inner))
                 if found:
                     return found, f"key {key!r}.{inner!r}"
 
-    # Last resort: any list-of-dicts that looks like events.
+    # Last resort: any list-of-dicts whose records carry an id.
     for key, value in truth.items():
         found = _as_list_of_dicts(value)
         if found and any(_event_id_of(item) for item in found):
