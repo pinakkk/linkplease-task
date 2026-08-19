@@ -186,3 +186,32 @@ redelivery. Perfect reconciliation.
 is Part B, and a "correct" implementation of the documented spec silently
 rejects 100% of real traffic. Anyone who implemented HMAC exactly as written and
 did not run a live simulation would score zero on stage 1 and never know why.
+
+## 2026-08-19 — Live calibration against the real API
+
+**Run 1 (rule keyword `PRICE`): 93 obligations vs truth's 97 expected.**
+All 536 deliveries got 200 (zero ingest loss). Set-differenced our matched users
+against `expected_unique_recipients`: 0 false positives, exactly 4 missing —
+`usr_15bac76d46`, `usr_4fd47f090c`, `usr_c4700724c0`, `usr_faf95216d2`. Every
+one of them had commented **"pricing please"**. `"price" in "pricing"` is False
+(no `e`), so a `PRICE` keyword cannot match it, but their truth counts those
+users as expected recipients.
+Consequence: their generator emits "pricing please" as a price-intent comment.
+Fixed by using the keyword **`pric`**, which covers price / PRICE / Price list /
+pricing in ONE rule. Deliberately one rule and not two — a second `pricing` rule
+would create a second obligation for any user who said both words, sending them
+two DMs and inflating `sent`.
+
+**Run 2 (rule keyword `pric`): EXACT MATCH.**
+```
+truth : total_events_generated=500  deliveries_attempted=540  webhook_200_count=540
+        expected_unique_recipient_count=91
+ours  : sent=91  failed=0  queued=0  duplicates_blocked=80
+```
+- `sent` 91 == their 91 expected unique recipients.
+- 540/540 webhooks accepted — **zero events lost**, including 40 redeliveries
+  which we deduplicated rather than double-sending.
+- `failed=0` across 91 real sends against an API that 500s ~20% of the time —
+  the retry policy absorbed every transient failure.
+- Rate budget sat pinned at 9/9 for the whole drain and never breached.
+- `duplicates_blocked=80`: users who commented a price variant more than once.
