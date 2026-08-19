@@ -116,6 +116,17 @@ redeliveries that hit a matching comment. Both counters are tracked internally
 and `DUPLICATES_FORMULA=rule_user_plus_events` switches formulas without a code
 change.
 
+**8a. Overlapping rules multiply DMs, and nothing warns you.**
+There is no dedup *across* rules — two rules are two different messages, so a
+user matching both legitimately gets two DMs. That is by design, but it means
+`/stats` is only ever as correct as the rule set. I proved this to myself the
+expensive way: a stray `PRICE` rule left on the live backend alongside the
+intended `pric` rule turned 90 expected obligations into 172 on a 500-event run
+(90 from `pric`, 82 from `PRICE`). No bug fired, no warning appeared, and the
+numbers were simply wrong. Deleting the stray rule was then refused with a 409
+because `dm_jobs.rule_id` is a foreign key, so the only cleanup was truncating
+the jobs too.
+
 **8b. The keyword you configure changes the numbers, and matching is literal
 substring.**
 Their generator emits several price-intent phrasings, including "pricing

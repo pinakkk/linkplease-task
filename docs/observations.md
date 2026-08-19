@@ -215,3 +215,28 @@ ours  : sent=91  failed=0  queued=0  duplicates_blocked=80
   the retry policy absorbed every transient failure.
 - Rate budget sat pinned at 9/9 for the whole drain and never breached.
 - `duplicates_blocked=80`: users who commented a price variant more than once.
+
+## 2026-08-19 — Operator error: a stray test rule doubled the obligations
+
+**A second rule left on the live backend inflated job count by 91%.**
+Conditions: while demonstrating the grader's contract check, a `POST /rules`
+created a real `PRICE` rule on the production backend AFTER the database had
+been reset for grading. The calibrated `pric` rule was then created too, so two
+rules matched the same comments. On the next 500-event run:
+`pric` produced 90 jobs (exactly their truth of 90) and `PRICE` produced 82
+more, for 172 obligations against 90 expected.
+
+The matcher was correct throughout — one live job per (rule, user) is exactly
+the specified behaviour, and two rules legitimately mean two DMs. The fault was
+operational: a test rule left in production.
+
+Consequence, and it belongs in FAILURES.md: **`/stats` is only as correct as the
+rule set.** Every rule whose keyword matches the same comment creates a separate
+DM obligation for that user, so a duplicate or overlapping rule inflates `sent`
+and `queued` without any bug in the pipeline. There is no dedup ACROSS rules by
+design (two different rules are two different messages), and nothing warns you
+that two rules overlap.
+
+Also noted: `DELETE /api/rules/{id}` correctly refused with 409 "rule has jobs"
+because `dm_jobs.rule_id` is a foreign key — the guard works, but it means a
+mistaken rule cannot be cleaned up without truncating the jobs that reference it.
