@@ -48,3 +48,22 @@ permanently FAILED** — the database must be cleared after the key lands, or
 to sin, of which the server work is a few ms.** Well inside the 5s contract.
 Redelivery dedup confirmed live: same `event_id` twice → `events.received = 1`,
 `redelivered = 1`, and exactly one `dm_job`.
+
+## 2026-08-19 — Test suite (89 tests, local Postgres + in-process fake API)
+
+**Rolling-window rate limiting made the test suite order-dependent.**
+Conditions: `pytest tests/test_pipeline.py` as a file. Three tests failed on a
+25s `wait_until` timeout; each passed when run alone in ~1.2s. Cause: the
+limiter is a rolling 60s window over the `send_log` table. Tests truncate
+`send_log` between cases, but `RATE_LIMIT_WINDOW_SECONDS` stayed at the
+production 60 while every other cadence knob was compressed, so once a test
+saturated the budget the *next* test could block in `wait_for_budget()` for the
+remainder of the minute. Fixed by compressing the window to 2s in the test
+environment (the max-vs-window ratio, which is what the policy tests assert, is
+preserved).
+Consequence: no product defect — but it is a genuine property of the design
+worth knowing: **the send worker can legitimately block for up to a full window,
+and anything that assumes prompt draining will be wrong.** At 9 sends/60s, a
+500-event burst that matches ~120 rules takes ~13 minutes to drain. That is not
+a bug, it is the platform's rate limit, and `/stats` reports the backlog
+honestly as `queued`.

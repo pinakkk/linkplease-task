@@ -52,6 +52,15 @@ os.environ.setdefault("MATCHER_SWEEP_INTERVAL", "0.2")
 os.environ.setdefault("BACKOFF_CAP_SECONDS", "0.2")
 os.environ.setdefault("HTTP_TIMEOUT_SECONDS", "1.0")
 os.environ.setdefault("SENDING_STALE_SECONDS", "60")
+# The rate window must be compressed too, and for a reason worth stating: the
+# limiter is a ROLLING window over a Postgres table. TRUNCATE-ing send_log
+# between tests empties the table, but tests that deliberately saturate the
+# budget (test_ratelimit.py) leave the *policy* asserting against a 60s window,
+# so a later test in the same session can block in wait_for_budget() for up to a
+# full minute and blow its timeout. Observed: test_pipeline.py passed when run
+# alone and failed as a file, purely on this. The ratio (max vs window) is what
+# the policy tests care about, and that is preserved.
+os.environ.setdefault("RATE_LIMIT_WINDOW_SECONDS", "2")
 
 import asyncpg  # noqa: E402
 import httpx  # noqa: E402
@@ -179,7 +188,7 @@ def wire_pseudogram(fake_api, monkeypatch):
 
     import app.pseudogram as pg
 
-    transport = httpx.ASGITransport(app=fake_api.app)
+    transport = TimeoutTransport(app=fake_api.app)
     client = httpx.AsyncClient(
         transport=transport,
         base_url="http://fake-pseudogram.test",
@@ -212,6 +221,25 @@ def wire_pseudogram(fake_api, monkeypatch):
         asyncio.get_event_loop().run_until_complete(_close())
     except Exception:
         pass
+
+
+class TimeoutTransport(httpx.ASGITransport):
+    """ASGITransport that can actually time out.
+
+    `ASGITransport` awaits the app in-process and enforces no timeout at all, so
+    a `sleep()` inside the stub would stall the test rather than raise. The stub
+    signals "this call should look like a network timeout" with a sentinel 599
+    status; we translate that into the real `httpx.ReadTimeout` the production
+    client would see, so Agent B's `transport_error` branch is genuinely
+    exercised (BLUEPRINT §5 row 6).
+    """
+
+    async def handle_async_request(self, request):
+        response = await super().handle_async_request(request)
+        if response.status_code == 599:
+            await response.aclose()
+            raise httpx.ReadTimeout("injected timeout", request=request)
+        return response
 
 
 # --- The app under test ------------------------------------------------------

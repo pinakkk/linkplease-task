@@ -259,13 +259,30 @@ async def send_dm(request: Request) -> JSONResponse:
     outcome = _decide_outcome()
 
     if outcome == "timeout":
-        # Force a client-side timeout by sleeping past any sane HTTP timeout.
-        # The send is recorded as received, which is exactly the nasty case:
-        # the server did the work, the client never learned about it.
-        _record("timeout", key, body, None)
-        import asyncio
-        await asyncio.sleep(30.0)
-        return JSONResponse({"dm_id": "unreachable", "status": "queued"}, 202)
+        # The nastiest case in the assignment (BLUEPRINT §5 row 6): the request
+        # ARRIVES and the DM is really created, but the client never learns the
+        # dm_id. So we create the DM (recording the key, so the client's retry
+        # is deduped) and then blow up the connection.
+        #
+        # `httpx.ASGITransport` awaits the app directly and enforces no timeout,
+        # so a `sleep()` here would just stall — the transport has to raise. See
+        # `TimeoutTransport` in conftest, which turns this marker into a real
+        # `httpx.ReadTimeout` on the client side.
+        dm_id = STATE.new_dm_id()
+        STATE.dms[dm_id] = DM(
+            dm_id=dm_id,
+            recipient_user_id=body.get("recipient_user_id"),
+            message=body.get("message"),
+            comment_id=body.get("comment_id"),
+            terminal_at=time.monotonic() + CONFIG.deliver_delay,
+            terminal_status=_decide_delivery(),
+            idempotency_key=key,
+        )
+        if key:
+            STATE.by_key[key] = dm_id
+        STATE.window.append(time.monotonic())
+        _record("timeout", key, body, dm_id)
+        return JSONResponse({"_fake": "timeout"}, 599)
 
     if outcome == "rate_limited":
         _record("rate_limited", key, body, None)
@@ -413,11 +430,16 @@ def dms_to(user_id: str) -> list[DM]:
 
 
 def force_delivery(dm_id: str, status: str) -> None:
-    """Flip an already-accepted DM's eventual outcome (the '202 then failed'
-    case from ASSIGNMENT: ~15% of accepted DMs end up failed)."""
+    """Flip an already-accepted DM to its terminal outcome, NOW — the '202 then
+    failed' case from ASSIGNMENT (~15% of accepted DMs end up failed).
+
+    This overrides any pending `deliver_delay`: a test that parked a DM in
+    'queued' to prove we do not count 202s as sent uses this to release it.
+    """
     dm = STATE.dms[dm_id]
     dm.terminal_status = status
-    dm.status = status if time.monotonic() >= dm.terminal_at else "queued"
+    dm.terminal_at = 0.0
+    dm.status = status
 
 
 app = FastAPI(title="fake-pseudogram")

@@ -49,8 +49,10 @@ export function Nav({ className }: NavProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  // Only route links can be "current". In-page anchors (/#pipeline) share the
+  // landing route, so treating them as active would light up three links at once.
   const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname === href.split("#")[0];
+    !href.includes("#") && pathname === href;
 
   return (
     <header
