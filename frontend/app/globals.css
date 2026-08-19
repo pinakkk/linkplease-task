@@ -1,0 +1,227 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens (BLUEPRINT §7.2). Light is the default; dark is opt-in via the
+   [data-theme="dark"] attribute set on <html> by the pre-hydration script in
+   lib/theme.ts. We deliberately do NOT use a bare prefers-color-scheme media
+   query here — the inline script resolves the system preference into the
+   attribute so that there is exactly one source of truth for the active theme.
+--------------------------------------------------------------------------- */
+
+:root {
+  --bg: #f4f4fa;
+  --surface: #ffffff;
+  --surface-2: #ededf6;
+  --ink: #0a0a14;
+  --ink-muted: #5b5b70;
+  --line: #e4e4ef;
+  --accent: #2e45e6;
+  --accent-soft: #e6e9fd;
+  --navy: #0d1130;
+  --navy-ink: #edeeff;
+  --radius-card: 1.5rem;
+  --shadow-card: 0 20px 50px -24px rgb(13 17 48 / 0.18);
+
+  /* Semantic status palette — light */
+  --status-queued: #b45309;
+  --status-queued-bg: #fef3c7;
+  --status-sending: #1d4ed8;
+  --status-sending-bg: #dbeafe;
+  --status-awaiting: #1d4ed8;
+  --status-awaiting-bg: #dbeafe;
+  --status-sent: #15803d;
+  --status-sent-bg: #dcfce7;
+  --status-failed: #b91c1c;
+  --status-failed-bg: #fee2e2;
+  --status-cancelled: #52525b;
+  --status-cancelled-bg: #e4e4e7;
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #0b0d1a;
+  --surface: #12152a;
+  --surface-2: #1a1e38;
+  --ink: #f0f1fa;
+  --ink-muted: #9a9dbb;
+  --line: #23264a;
+  --accent: #5b6ef5;
+  --accent-soft: #1b2050;
+  --navy: #060814;
+  --navy-ink: #edeeff;
+  --shadow-card: 0 20px 50px -24px rgb(0 0 0 / 0.6);
+
+  /* Semantic status palette — dark */
+  --status-queued: #fbbf24;
+  --status-queued-bg: #3d2a05;
+  --status-sending: #93b4fd;
+  --status-sending-bg: #16224a;
+  --status-awaiting: #93b4fd;
+  --status-awaiting-bg: #16224a;
+  --status-sent: #6ee7a4;
+  --status-sent-bg: #06301c;
+  --status-failed: #fca5a5;
+  --status-failed-bg: #3d1212;
+  --status-cancelled: #a1a1aa;
+  --status-cancelled-bg: #26262c;
+
+  color-scheme: dark;
+}
+
+/* ---------------------------------------------------------------------------
+   Expose tokens to Tailwind v4 utilities: bg-surface, text-ink, border-line,
+   text-accent, rounded-card, shadow-card, etc.
+--------------------------------------------------------------------------- */
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-navy: var(--navy);
+  --color-navy-ink: var(--navy-ink);
+
+  --color-status-queued: var(--status-queued);
+  --color-status-queued-bg: var(--status-queued-bg);
+  --color-status-sending: var(--status-sending);
+  --color-status-sending-bg: var(--status-sending-bg);
+  --color-status-awaiting: var(--status-awaiting);
+  --color-status-awaiting-bg: var(--status-awaiting-bg);
+  --color-status-sent: var(--status-sent);
+  --color-status-sent-bg: var(--status-sent-bg);
+  --color-status-failed: var(--status-failed);
+  --color-status-failed-bg: var(--status-failed-bg);
+  --color-status-cancelled: var(--status-cancelled);
+  --color-status-cancelled-bg: var(--status-cancelled-bg);
+
+  --radius-card: var(--radius-card);
+  --shadow-card: var(--shadow-card);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+}
+
+/* --------------------------------------------------------------------------- */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background-color: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Theme transition fallback (browsers without the View Transitions API).
+   Applied to <html> for ~450ms around a theme flip and then removed, so we
+   never pay a transition cost on every unrelated interaction.
+--------------------------------------------------------------------------- */
+
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition:
+    background-color 0.45s ease,
+    color 0.45s ease,
+    border-color 0.45s ease,
+    fill 0.45s ease,
+    stroke 0.45s ease !important;
+}
+
+/* ---------------------------------------------------------------------------
+   View Transitions circular reveal. The outgoing snapshot stays put while the
+   incoming (new theme) snapshot is clipped by an expanding circle centred on
+   the toggle button. Coordinates come from --vt-x / --vt-y / --vt-r, set on
+   <html> by theme-toggle.tsx right before startViewTransition().
+--------------------------------------------------------------------------- */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+html.theme-reveal::view-transition-new(root) {
+  animation: theme-circle-reveal 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes theme-circle-reveal {
+  from {
+    clip-path: circle(0px at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+  to {
+    clip-path: circle(var(--vt-r, 150vmax) at var(--vt-x, 50%) var(--vt-y, 50%));
+  }
+}
+
+/* Live-feed / AWAITING_CONFIRM pulsing dot. */
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
+.animate-status-pulse {
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+
+/* --------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .theme-transition,
+  .theme-transition *,
+  .theme-transition *::before,
+  .theme-transition *::after {
+    transition: none !important;
+  }
+
+  .animate-status-pulse {
+    animation: none;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
