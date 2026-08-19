@@ -8,7 +8,7 @@ never arrive.
 Built for the LinkPlease tech-intern assignment. **Parts A + B + C.**
 
 - **Backend (the graded URL):** https://linkplease-backend.fly.dev
-- **Dashboard:** _(Cloudflare URL — see Deployment below)_
+- **Dashboard:** https://linkplease-dashboard.pinakkundu1080.workers.dev
 - **Known failure modes:** [`FAILURES.md`](FAILURES.md) — read this one.
 
 ---
