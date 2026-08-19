@@ -129,3 +129,48 @@ async def test_route_rejects_body_tampered_in_flight(api, pool, signatures_on):
     )
     assert resp.status_code == 401
     assert await _events(pool) == []
+
+
+# --- The secret is the EMAIL, not the API key (learned the hard way) ---------
+
+def test_webhook_secret_is_derived_from_the_key_not_the_key_itself():
+    """ASSIGNMENT.md says the API key is the HMAC secret. It is not.
+
+    Keys are issued as `base64(email).random`, and real signatures verify
+    against the decoded email. Discovered by capturing a live (body, signature)
+    pair during a simulator run: every delivery was returning 401 and their
+    truth endpoint reported `webhook_200_count: 0`.
+
+    This test exists so nobody "fixes" config.webhook_secret() back to the
+    documented-but-wrong behaviour.
+    """
+    import base64
+    import importlib
+    from app import config
+
+    email = "someone@example.com"
+    head = base64.b64encode(email.encode()).decode().rstrip("=")
+    key = f"{head}.d4ed77625cc44b330038"
+
+    original = config.PSEUDOGRAM_API_KEY
+    try:
+        config.PSEUDOGRAM_API_KEY = key
+        assert config.webhook_secret() == email
+    finally:
+        config.PSEUDOGRAM_API_KEY = original
+
+
+def test_webhook_secret_falls_back_to_the_key_when_it_is_not_the_expected_shape():
+    """If they ever issue a plain key, honour the documented behaviour rather
+    than deriving nonsense from it."""
+    from app import config
+
+    original = config.PSEUDOGRAM_API_KEY
+    try:
+        config.PSEUDOGRAM_API_KEY = "a-plain-key-with-no-dot"
+        assert config.webhook_secret() == "a-plain-key-with-no-dot"
+        # A dotted key whose head is not base64 of an email also falls back.
+        config.PSEUDOGRAM_API_KEY = "notbase64.tail"
+        assert config.webhook_secret() == "notbase64.tail"
+    finally:
+        config.PSEUDOGRAM_API_KEY = original

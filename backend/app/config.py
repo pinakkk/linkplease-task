@@ -4,6 +4,7 @@
 """Runtime configuration. Everything comes from the environment; the defaults
 are the ones BLUEPRINT settles on, so a bare `uvicorn app.main:app` runs the
 same policy as production."""
+import base64
 import os
 
 
@@ -16,8 +17,36 @@ def _float(name: str, default: float) -> float:
 
 
 # --- Credentials / endpoints -------------------------------------------------
-# The API key is also the HMAC secret for webhook signatures (ASSIGNMENT).
 PSEUDOGRAM_API_KEY = os.getenv("PSEUDOGRAM_API_KEY", "")
+
+
+def webhook_secret() -> str:
+    """The secret PseudoGram actually signs webhooks with.
+
+    ASSIGNMENT.md says the API key is the HMAC secret. In practice it is not:
+    keys are issued in the form `base64(email).random`, and the signatures they
+    send verify against the EMAIL, i.e. the decoded first segment. Confirmed by
+    capturing a real (body, signature) pair from a live simulator run and
+    solving it offline against every plausible candidate — the email was the
+    only one that reproduced their digest.
+
+    We derive it from the key rather than storing the email separately, so there
+    is still exactly one secret to configure. WEBHOOK_SECRET overrides it if
+    they ever change the scheme, and if the key is not in the expected shape we
+    fall back to the documented behaviour (the whole key).
+    """
+    override = os.getenv("WEBHOOK_SECRET", "")
+    if override:
+        return override
+    head, dot, _ = PSEUDOGRAM_API_KEY.partition(".")
+    if not dot or not head:
+        return PSEUDOGRAM_API_KEY
+    try:
+        decoded = base64.b64decode(head + "=" * (-len(head) % 4)).decode()
+    except Exception:
+        return PSEUDOGRAM_API_KEY
+    # Only trust the decode if it looks like the email it is supposed to be.
+    return decoded if "@" in decoded else PSEUDOGRAM_API_KEY
 PSEUDOGRAM_BASE_URL = os.getenv(
     "PSEUDOGRAM_BASE_URL", "https://pseudogram-api.onrender.com"
 ).rstrip("/")

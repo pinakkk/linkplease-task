@@ -149,3 +149,40 @@ Consequence: cosmetic only (the elements are `pointer-events-none`), but it made
 the whole page scroll sideways on a phone. Re-verified after redeploy: all six
 combinations (landing/dashboard × light/dark × 1440/375) show no overflow and no
 console errors.
+
+## 2026-08-19 — THE BUG THAT WOULD HAVE SCORED ZERO: wrong HMAC secret
+
+**Every single webhook from the real simulator was rejected with 401.**
+Conditions: first live simulation run (20 events) immediately after the real API
+key was installed. Their truth endpoint reported `webhook_200_count: 0` against
+`total_deliveries_attempted: 21`. Fly logs showed 21× `POST /webhook 401`.
+Our `/stats` stayed at zero because nothing was ever ingested.
+
+ASSIGNMENT.md states the signature is "HMAC-SHA256 of the raw request body
+using your API key as the secret". That is **not** what they do.
+
+Diagnosis: added temporary logging that dumped the full raw body (base64) and
+the signature they sent, fired a 2-event run, and solved the pair offline
+against every plausible candidate secret — full key, the segment before the dot,
+the segment after the dot, the base64-decoded head, the hex-decoded tail, and
+plain (non-HMAC) hashes. Exactly one reproduced their digest.
+
+**The secret is the EMAIL ADDRESS.** Keys are issued in the form
+`base64(email).random` — for this key, `YnlwaW5ha2t1bmR1QGdtYWlsLmNvbQ` decodes
+to the email, and HMAC-SHA256(raw_body, key=email) matches their signature
+exactly on captured pairs.
+
+Fix: `config.webhook_secret()` derives the secret from the key by decoding the
+first segment, with a guard that only trusts the decode if it contains `@`, and
+falls back to the documented behaviour (whole key) otherwise. `WEBHOOK_SECRET`
+env var overrides. Two regression tests lock it in so nobody "corrects" it back
+to the documented-but-wrong version.
+
+Verified after the fix: 10-event run → `webhook_200_count: 11` (11 attempted
+deliveries of 10 unique events), our side recorded exactly 10 events with 1
+redelivery. Perfect reconciliation.
+
+**This is the single most valuable thing testing found.** Signature verification
+is Part B, and a "correct" implementation of the documented spec silently
+rejects 100% of real traffic. Anyone who implemented HMAC exactly as written and
+did not run a live simulation would score zero on stage 1 and never know why.

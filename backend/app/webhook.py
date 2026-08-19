@@ -107,7 +107,7 @@ async def webhook(request: Request) -> JSONResponse:
     # 2. Signature (Part B). Forged requests never touch the database.
     if config.VERIFY_SIGNATURES:
         header = request.headers.get(SIGNATURE_HEADER)
-        if not verify_signature(raw, header, config.PSEUDOGRAM_API_KEY):
+        if not verify_signature(raw, header, config.webhook_secret()):
             return JSONResponse({"error": "invalid_signature"}, status_code=401)
 
     # 3. Parse.
