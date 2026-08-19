@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "linkplease-dashboard",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-19",
+  // nodejs_compat is required by OpenNext's Next.js runtime shims.
+  // global_fetch_strictly_public makes fetch() behave like a real browser's,
+  // which is what we want when the dashboard calls the Fly backend.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true },
+  "vars": {
+    // The dashboard is a pure client-side poller; this is the Fly backend it
+    // reads. It is public by design — every route it calls is a read route or
+    // the rules form.
+    "NEXT_PUBLIC_API_BASE": "https://linkplease-backend.fly.dev"
+  }
+}

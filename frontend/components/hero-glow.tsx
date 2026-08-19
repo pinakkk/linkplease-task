@@ -32,7 +32,10 @@ export function HeroGlow({ children }: { children: ReactNode }) {
   const contentY = useTransform(scrollYProgress, [0, 1], ["0px", "-56px"]);
 
   return (
-    <div ref={ref} className="relative isolate">
+    // overflow-clip (not hidden) contains the oversized glow blobs without
+    // creating a scroll container — at 375px they are wider than the viewport
+    // by design, and without this they push the page into horizontal scroll.
+    <div ref={ref} className="relative isolate overflow-clip">
       <motion.div
         aria-hidden="true"
         className="pointer-events-none absolute left-1/2 top-[-12rem] -z-10 h-[42rem] w-[min(80rem,140vw)] -translate-x-1/2"

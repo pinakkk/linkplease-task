@@ -93,3 +93,14 @@ within ~150ms and the event was marked processed.
 Consequence: the sweep loop is not belt-and-braces, it is the only thing that
 recovers this case. If the sweep is ever disabled, an event whose dispatch
 crashed becomes a silently lost DM. Belongs in FAILURES.md as a dependency.
+
+## 2026-08-19 — Cloudflare deploy
+
+**OpenNext built and deployed Next 16.3.1 to Cloudflare Workers without
+incident.** Worker startup 31ms, bundle 1.15MB gzipped. Both routes return 200.
+CORS from the Worker origin to the Fly backend returns
+`access-control-allow-origin: *` and a 200, so the dashboard's client-side
+polling reaches the backend from the edge.
+Conditions: `@opennextjs/cloudflare` 1.x, `nodejs_compat` +
+`global_fetch_strictly_public` flags, no incremental cache configured (every
+page is static or client-polled).
