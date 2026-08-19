@@ -11,6 +11,10 @@ Built for the LinkPlease tech-intern assignment. **Parts A + B + C.**
 - **Dashboard:** https://linkplease-dashboard.pinakkundu1080.workers.dev
 - **Known failure modes:** [`FAILURES.md`](FAILURES.md) — read this one.
 
+**Calibrated against their truth endpoint.** Final 500-event live run:
+`sent=91` vs their `expected_unique_recipient_count=91`, `failed=0`,
+`webhook_200_count=540/540` — zero events lost, rate limit never breached.
+
 ---
 
 ## The contract
