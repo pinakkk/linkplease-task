@@ -65,10 +65,19 @@ export function SimPanel({ className }: SimPanelProps) {
   const [runId, setRunId] = useState<string>();
   const [report, setReport] = useState<SimulationReport>();
   const [error, setError] = useState<ApiError>();
-  const [startedAt, setStartedAt] = useState<number>();
+  /** Seconds since the run started, ticked by an effect so render stays pure. */
+  const [elapsed, setElapsed] = useState(0);
 
   // Lets the polling effect stop itself without becoming a dependency loop.
   const stopRef = useRef(false);
+
+  // Elapsed-time ticker. Kept separate from the report poll so the "started Ns
+  // ago" line advances every second without issuing a request every second.
+  useEffect(() => {
+    if (phase !== "running") return;
+    const id = setInterval(() => setElapsed((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [phase]);
 
   useEffect(() => {
     if (phase !== "running" || !runId) return;
@@ -133,7 +142,7 @@ export function SimPanel({ className }: SimPanelProps) {
     }
 
     setRunId(result.data.run_id);
-    setStartedAt(Date.now());
+    setElapsed(0);
     setPhase("running");
   }, []);
 
@@ -174,9 +183,7 @@ export function SimPanel({ className }: SimPanelProps) {
           queue drains at 9 per 60s by design — so `queued` will stay high for
           minutes and that is the correct behaviour, not a backlog bug. Polling
           for the truth diff every {POLL_INTERVAL_MS / 1000}s.
-          {startedAt
-            ? ` Started ${Math.round((Date.now() - startedAt) / 1000)}s ago.`
-            : null}
+          {elapsed > 0 ? ` Started ${elapsed}s ago.` : null}
         </p>
       ) : null}
 
