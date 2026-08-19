@@ -12,3 +12,6 @@ out/
 .wrangler/
 .DS_Store
 *.log
+
+# Personal working notes — never publish
+docs/GET_YOUR_KEYS.md
